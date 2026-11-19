@@ -29,7 +29,7 @@ FIELDS = [
     # 4 Augury status
     "augury_status", "augury_confirmed_sites", "augury_source_url", "augury_announced_as_of",
     # 5 trigger
-    "trigger_role", "trigger_plant", "trigger_posted", "trigger_as_of", "trigger_expires",
+    "trigger_role", "trigger_plant", "trigger_posted", "trigger_as_of", "trigger_date_source", "trigger_expires",
     "trigger_url", "trigger_verified_on_board", "trigger_source",
     # notes for the reason column and QC
     "notes",
@@ -81,6 +81,7 @@ def main() -> None:
             "trigger_role": t.get("title", ""), "trigger_plant": t.get("plant", ""),
             "trigger_posted": t.get("posted_iso", ""),
             "trigger_as_of": f"as of {as_of}" if t else "",
+            "trigger_date_source": t.get("date_source", ""),
             "trigger_expires": t.get("expires_iso", ""),
             "trigger_url": t.get("url", ""),
             "trigger_verified_on_board": t.get("verified_on_board", ""),

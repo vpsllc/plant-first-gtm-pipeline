@@ -121,3 +121,11 @@ class HandCounts(unittest.TestCase):
                     self.assertTrue(r[col] == "" or r[col].isdigit(), (r["company"], col))
                 if r["plant_count_hand"] or r["us_plant_count_hand"]:
                     self.assertTrue(r["plant_count_hand_note"], r["company"])
+
+
+class SeedDateFallback(unittest.TestCase):
+    def test_unreadable_employer_date_falls_back_to_seed(self):
+        from pipeline.filters import parse_posted
+        self.assertIsNone(parse_posted("Not specified", AS_OF))
+        self.assertIsNone(parse_posted("", AS_OF))
+        self.assertTrue(evaluate("Reliability Engineer", "Macon, GA", "2026-10-28", AS_OF)[0])

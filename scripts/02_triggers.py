@@ -30,7 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline.common import CONFIG, OUT, env, load_parents, read_csv, write_csv  # noqa: E402
-from pipeline.filters import WINDOW_DAYS, evaluate  # noqa: E402
+from pipeline.filters import WINDOW_DAYS, evaluate, parse_posted  # noqa: E402
 from pipeline.firecrawl_client import CreditCapReached, Firecrawl  # noqa: E402
 
 POSTING_SCHEMA = {
@@ -75,7 +75,7 @@ BOARD_PROMPT = (
     "location as shown, the posted date exactly as shown (null if not shown), and the link to the posting."
 )
 
-FIELDS = ["company", "parent", "title", "plant", "posted", "posted_iso", "expires_iso", "as_of", "url",
+FIELDS = ["company", "parent", "title", "plant", "posted", "posted_iso", "date_source", "expires_iso", "as_of", "url",
           "final_url", "source", "verified_on_board", "qualifies", "reason"]
 
 
@@ -125,12 +125,22 @@ def main() -> None:
                 continue
             title = data.get("title") or seed["title"]
             location = data.get("location") or seed["location"]
-            posted = data.get("posted_date") or seed["posted_at"]
+            # The employer's own date wins when the page shows one we can read. If the employer page
+            # confirms the posting is open but shows no readable date, use the seed's job-board date,
+            # labeled as such. (Board-search rows get no fallback: no date, no trigger.)
+            employer_date = data.get("posted_date") or ""
+            if parse_posted(employer_date, as_of):
+                posted, date_source = employer_date, "employer site"
+            else:
+                posted = seed["posted_at"]
+                date_source = (f"posted {seed['posted_at']} per job board; "
+                               f"confirmed open on employer site {as_of.isoformat()}")
             ok, reason, pdate = evaluate(title, location, posted, as_of)
             if not data.get("is_open"):
                 ok, reason = False, "closed on employer board"
             rows.append({"company": seed["company"], "parent": parent, "title": title, "plant": location,
                          "posted": posted, "posted_iso": pdate.isoformat() if pdate else "",
+                         "date_source": date_source,
                          "url": seed["employer_url"], "final_url": data.get("_final_url", ""),
                          "source": "employer board",
                          "verified_on_board": bool(data.get("is_open")), "qualifies": ok, "reason": reason})
@@ -154,6 +164,7 @@ def main() -> None:
                         rows.append({"company": p["company"], "parent": p["parent"], "title": job.get("title"),
                                      "plant": job.get("location"), "posted": job.get("posted_date"),
                                      "posted_iso": pdate.isoformat() if pdate else "",
+                                     "date_source": "employer board search",
                                      "url": job.get("url") or url, "source": "employer board search",
                                      "verified_on_board": True, "qualifies": ok, "reason": reason})
     except CreditCapReached as e:

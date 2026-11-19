@@ -40,29 +40,29 @@ POSTING_SCHEMA = {
         "company": {"type": ["string", "null"]},
         "location": {"type": ["string", "null"]},
         "posted_date": {"type": ["string", "null"]},
-        "is_open": {"type": "boolean"},
-        "closed_evidence": {"type": ["string", "null"]},
+        "status": {"type": "string", "enum": ["open", "closed", "unclear"]},
+        "status_evidence": {"type": ["string", "null"]},
     },
-    "required": ["is_open"],
+    "required": ["status", "status_evidence"],
 }
 POSTING_PROMPT = (
     "This is a single job posting page. Return the job title, the hiring company as shown, the work location "
-    "(city and state as shown), the posted or posting start date exactly as shown, and is_open: false if the "
-    "page says the job is closed, filled, expired or no longer accepting applications, otherwise true. "
-    "If is_open is false, put the exact sentence from the page that says so in closed_evidence."
+    "(city and state as shown), and the posted or posting start date exactly as shown. "
+    "Then set status: 'open' if the page shows an Apply button or link or otherwise accepts applications; "
+    "'closed' only if the page explicitly says the job is closed, filled, expired, no longer available or no "
+    "longer accepting applications; otherwise 'unclear'. In status_evidence, copy the exact short text from the "
+    "page that shows it (for example the Apply button label, or the closed message), under 15 words."
 )
 
-CLOSED_WORDS = ("closed", "filled", "expired", "no longer", "not accepting", "not available", "unavailable",
-                "removed", "not found", "does not exist")
 
-
-def page_says_closed(data: dict) -> bool:
-    """Closed only when the page itself says so. A bare is_open=false with no supporting sentence marked
-    8 of 9 open postings closed on Nov 18, 2026 (all 9 were open when checked by hand), so it is ignored."""
-    if data.get("is_open") is not False:
-        return False
-    evidence = (data.get("closed_evidence") or "").lower()
-    return any(w in evidence for w in CLOSED_WORDS)
+def posting_status(data: dict) -> tuple[str, str]:
+    """Return (open|closed|unclear, evidence). Open or closed needs evidence text from the page;
+    anything else is unclear, and an unclear posting never counts as closed or as a trigger."""
+    status = str(data.get("status") or "").strip().lower()
+    evidence = str(data.get("status_evidence") or "").strip()
+    if status in ("open", "closed") and evidence:
+        return status, evidence
+    return "unclear", evidence
 
 BOARD_SCHEMA = {
     "type": "object",
@@ -90,7 +90,7 @@ BOARD_PROMPT = (
 )
 
 FIELDS = ["company", "parent", "title", "plant", "posted", "posted_iso", "date_source", "expires_iso", "as_of", "url",
-          "final_url", "source", "verified_on_board", "qualifies", "reason"]
+          "final_url", "source", "verified_on_board", "status_evidence", "qualifies", "reason"]
 
 
 def main() -> None:
@@ -100,6 +100,7 @@ def main() -> None:
     ap.add_argument("--as-of", required=True, help="fixed window anchor date for every row, YYYY-MM-DD")
     ap.add_argument("--keywords", default="reliability,planner",
                     help="board search keywords; each one is a separate scrape per board")
+    ap.add_argument("--only", default="", help="comma-separated seed companies to (re)check")
     ap.add_argument("--boards", action="store_true",
                     help="also run customer board searches (optional, run last, credits permitting)")
     args = ap.parse_args()
@@ -115,7 +116,10 @@ def main() -> None:
 
     try:
         # a) Seed postings: open each on the employer board.
+        only = {x.strip().lower() for x in args.only.split(",") if x.strip()}
         for seed in read_csv(CONFIG / "seed_postings.csv"):
+            if only and seed["company"].lower() not in only:
+                continue
             parent = parents.get(seed["company"], {}).get("parent", seed["company"])
             if not seed["employer_url"]:
                 ok, reason, posted = evaluate(seed["title"], seed["location"], seed["posted_at"], as_of)
@@ -136,7 +140,9 @@ def main() -> None:
                                              f"employer site {seed['confirmed_open_on']} "
                                              f"({seed.get('confirmed_by') or 'confirmed'})"),
                              "url": seed["employer_url"], "final_url": "", "source": "employer board",
-                             "verified_on_board": True, "qualifies": ok, "reason": reason})
+                             "verified_on_board": True,
+                             "status_evidence": f"open per {seed.get('confirmed_by') or 'confirmation'}",
+                             "qualifies": ok, "reason": reason})
                 continue
             if not budget_ok():
                 break
@@ -155,24 +161,27 @@ def main() -> None:
             # The employer's own date wins when the page shows one we can read. If the employer page
             # confirms the posting is open but shows no readable date, use the seed's job-board date,
             # labeled as such. (Board-search rows get no fallback: no date, no trigger.)
+            status, evidence = posting_status(data)
             employer_date = data.get("posted_date") or ""
-            closed = page_says_closed(data)
             if parse_posted(employer_date, as_of):
                 posted, date_source = employer_date, "employer site"
             else:
                 posted = seed["posted_at"]
                 date_source = f"posted {seed['posted_at']} per job board"
-                if not closed:
+                if status == "open":
                     date_source += f"; confirmed open on employer site {as_of.isoformat()}"
             ok, reason, pdate = evaluate(title, location, posted, as_of)
-            if closed:
-                ok, reason = False, f"closed on employer board: {data.get('closed_evidence', '')[:120]}"
+            if status == "closed":
+                ok, reason = False, f'closed on employer site ("{evidence}")'
+            elif status == "unclear":
+                ok, reason = False, "open or closed unclear on employer page; check by hand"
             rows.append({"company": seed["company"], "parent": parent, "title": title, "plant": location,
                          "posted": posted, "posted_iso": pdate.isoformat() if pdate else "",
                          "date_source": date_source,
                          "url": seed["employer_url"], "final_url": data.get("_final_url", ""),
                          "source": "employer board",
-                         "verified_on_board": not closed, "qualifies": ok, "reason": reason})
+                         "verified_on_board": status == "open", "status_evidence": evidence,
+                         "qualifies": ok, "reason": reason})
 
         # b) Board searches for script-sourced parents with a careers_url.
         if args.boards:
@@ -195,7 +204,9 @@ def main() -> None:
                                      "posted_iso": pdate.isoformat() if pdate else "",
                                      "date_source": "employer board search",
                                      "url": job.get("url") or url, "source": "employer board search",
-                                     "verified_on_board": True, "qualifies": ok, "reason": reason})
+                                     "verified_on_board": True,
+                             "status_evidence": f"open per {seed.get('confirmed_by') or 'confirmation'}",
+                             "qualifies": ok, "reason": reason})
     except CreditCapReached as e:
         print(f"  STOP: {e}")
 
@@ -204,6 +215,14 @@ def main() -> None:
         r["as_of"] = as_of.isoformat()
         if r.get("qualifies") is True and r.get("posted_iso"):
             r["expires_iso"] = (date.fromisoformat(r["posted_iso"]) + timedelta(days=WINDOW_DAYS)).isoformat()
+
+    # With --only, keep earlier results for every company not re-checked in this run.
+    if args.only and args.run and (OUT / "triggers.csv").exists():
+        rechecked = {r["company"] for r in rows}
+        kept = [r for r in read_csv(OUT / "triggers.csv") if r["company"] not in rechecked]
+        for r in kept:
+            r["qualifies"] = r.get("qualifies") in (True, "True")
+        rows = kept + rows
 
     # One best trigger per parent: the most recent qualifying posting.
     best: dict[str, dict] = {}

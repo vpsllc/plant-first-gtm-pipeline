@@ -60,12 +60,19 @@ def main() -> None:
             dropped.append(p["company"])
             continue
         c = dict(counts.get(p["company"], {}))
-        if p.get("plant_count_hand") or p.get("us_plant_count_hand"):
+        if (p.get("plant_count_hand") or "").strip().lower() == "not stated":
+            # Rod's rule: no company statement of a plant count means "not stated" (ranks last in its tier).
+            c.update(plant_count="", us_plant_count="", unit_label="", plant_count_label="not stated",
+                     method="not stated", evidence=p["plant_count_hand_note"], quote="", status="not stated")
+        elif p.get("plant_count_hand") or p.get("us_plant_count_hand"):
             # A hand count read from the saved filing text wins over the script's automatic count.
             filed = re.search(r"\(filed [^)]+\)", c.get("plant_count_label", "") or "")
             c.update(plant_count=p.get("plant_count_hand", ""), us_plant_count=p.get("us_plant_count_hand", ""),
                      plant_count_label=p["plant_count_hand_note"] + (f" {filed.group(0)}" if filed else ""),
                      method="hand count from filing text", evidence=p["plant_count_hand_note"], status="ok: hand count")
+        elif str(c.get("status", "")).startswith("CHECK"):
+            # An unchecked count never reaches Clay (PepsiCo's 13 came from a sample list).
+            c.update(plant_count="", us_plant_count="")
         t = triggers.get(p["company"], {})
         augury_date = p["augury_date"]
         row = {
@@ -92,7 +99,7 @@ def main() -> None:
         out.append(row)
 
         if (p["row_group"] != "excluded_reference" and p["plant_count_source"] != "none"
-                and not row["plant_count"] and not row["us_plant_count"]):
+                and not row["plant_count"] and not row["us_plant_count"] and c.get("status") != "not stated"):
             gaps.append(f"- {p['company']}: no plant count ({c.get('status', 'not pulled')})")
         if str(c.get("status", "")).startswith("CHECK"):
             gaps.append(f"- {p['company']}: plant count needs a hand check ({c['status']})")

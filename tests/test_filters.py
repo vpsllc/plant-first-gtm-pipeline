@@ -118,7 +118,8 @@ class HandCounts(unittest.TestCase):
         with open(path, encoding="utf-8") as f:
             for r in csv.DictReader(f):
                 for col in ("plant_count_hand", "us_plant_count_hand"):
-                    self.assertTrue(r[col] == "" or r[col].isdigit(), (r["company"], col))
+                    ok = r[col] == "" or r[col].isdigit() or (col == "plant_count_hand" and r[col] == "not stated")
+                    self.assertTrue(ok, (r["company"], col))
                 if r["plant_count_hand"] or r["us_plant_count_hand"]:
                     self.assertTrue(r["plant_count_hand_note"], r["company"])
 

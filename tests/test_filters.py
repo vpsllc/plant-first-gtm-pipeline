@@ -105,6 +105,9 @@ class Config(unittest.TestCase):
         for r in rows.values():
             if r["row_group"] == "excluded_reference":
                 self.assertNotIn("reason: industry", r["notes"].lower(), r["company"])
+                if "headroom" in r["notes"].lower():
+                    # A footprint exclusion needs a hand-verified count below the 5-plant bar (spec v1.8).
+                    self.assertTrue(r["plant_count_hand"].isdigit() and int(r["plant_count_hand"]) < 5, r["company"])
 
 
 if __name__ == "__main__":

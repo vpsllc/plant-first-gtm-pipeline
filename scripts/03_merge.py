@@ -1,9 +1,9 @@
 """Step 3: merge parents, plant counts and triggers into one CSV for Clay.
 
-Tiering, ranking and play routing are NOT done here. They are Clay formulas, so Cody
-can see the logic in the table. This script only assembles clean, sourced inputs.
+Tiering, ranking and play routing are NOT done here. They are Clay formulas, so the logic
+is visible in the table. This script only assembles clean, sourced inputs.
 
-Rows marked row_group=not_used in config/parents.csv (Toray, per spec v1.5) are always dropped.
+Rows marked row_group=not_used in config/parents.csv (Toray) are always dropped.
 
 Output: out/clay_import.csv and out/run_report.md
 """

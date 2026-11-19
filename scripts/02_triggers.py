@@ -1,7 +1,7 @@
 """Step 2: plant-level reliability hiring triggers, verified on the employer's own board.
 
 Two sources, both read from employer boards through Firecrawl:
-  a) Seed postings (config/seed_postings.csv) found in the Stage 2 scan. Each employer_url
+  a) Seed postings (config/seed_postings.csv) found in an earlier job-board scan. Each employer_url
      is opened to confirm the posting is open and to read its title, location and date.
   b) Parents with trigger_source=script and a careers_url: the board's search page is read
      once per keyword and every listed posting is filtered.

@@ -2,18 +2,18 @@
 
 The Clay moment is one enrichment that runs only on Tier 2 candidate rows, plus a visible formula that applies the same strict trigger rules as `pipeline/filters.py`. A row is promoted only when the formula finds a qualifying posting.
 
-## 1. Pre-check (done Nov 18, free searches, not proof)
+## 1. Results (run Nov 19, 2026; 6 Clay credits)
 
-| Candidate | What free searches showed | Expectation |
-|---|---|---|
-| International Paper | Mill reliability engineer postings at several US mills; dates not confirmed | Likely promotes |
-| Owens Corning | Plant reliability engineer postings at several US plants; dates not confirmed | Likely promotes |
-| Kimberly-Clark | Older Reliability Manager listing; a technician role (excluded) | Uncertain |
-| General Mills | Maintenance & Reliability Manager roles that look older than 60 days | Uncertain |
-| Louisiana-Pacific | Latest plant reliability posting started Feb 2026; another closed | Likely stays out on trigger |
-| Hershey | "Reliability Lead" titles (not on the strict list), latest Aug 30, 2026 | Likely stays out on trigger |
+| Candidate | Clay found | Employer site | Result |
+|---|---|---|---|
+| Owens Corning | Reliability Engineer, Fort Smith, AR | Open (req 70296) | Promoted |
+| International Paper | Mechanical Maintenance Planner, Cayuga, IN | Open (req 2004955, posted Nov 18) | Promoted |
+| Louisiana-Pacific | Maintenance Planner, Thomasville, AL | Open (Req Id 12881, posted Nov 10) | Promoted |
+| Hershey | Analyst Maintenance Planner, Hershey, PA | Employer page says the posting is no longer active | Not promoted |
+| General Mills | Maintenance Planner, Cedar Rapids, IA | Not confirmed on the employer site | Not promoted |
+| Kimberly-Clark | Only an Electrical Reliability Technician (excluded title) | n/a | No trigger |
 
-The two "stays out" rows are useful: they show the formula rejecting a near-miss title and a stale posting. Rows that come back empty become Excluded with the reason "no plant-level reliability trigger in 60 days."
+Rejected on title or location in the same run: Hershey's "Reliability Lead" postings (not on the strict list) and a Louisiana-Pacific corporate role with no named plant.
 
 ## 2. Enrichment column (conditional run)
 
@@ -25,7 +25,7 @@ The two "stays out" rows are useful: they show the formula rejecting a near-miss
 
 **Keep this in sync with `pipeline/filters.py`.** The two regexes below are generated from the INCLUDE and EXCLUDE lists in `filters.py`, every `\b` word boundary included, by `python scripts/print_clay_regex.py`. The offline tests fail if this file and `filters.py` drift apart. Never hand-edit the patterns here: change `filters.py`, regenerate, paste. Without the word boundaries, "mechanic" would block "Mechanical," "product" would block "Production," "build" would block "Building" and "intern" would block "International," and the Clay demo would contradict the scripts on the same title.
 
-Set `AS_OF` to the same fixed date passed to `02_triggers.py --as-of` (the Stage 4 run date, 2026-11-19).
+Set `AS_OF` to the same fixed date passed to `02_triggers.py --as-of` (the run date, 2026-11-19).
 
 Generated regexes (the reference the tests check):
 

@@ -108,7 +108,7 @@ class Config(unittest.TestCase):
             if r["row_group"] == "excluded_reference":
                 self.assertNotIn("reason: industry", r["notes"].lower(), r["company"])
                 if "headroom" in r["notes"].lower():
-                    # A footprint exclusion needs a hand-verified count below the 5-plant bar (spec v1.8).
+                    # A footprint exclusion needs a hand-verified count below the 5-plant bar.
                     self.assertTrue(r["plant_count_hand"].isdigit() and int(r["plant_count_hand"]) < 5, r["company"])
 
 
@@ -158,7 +158,7 @@ class PostingStatus(unittest.TestCase):
 
 
 class TableNotes(unittest.TestCase):
-    """Only Cody-facing text reaches the Clay import; internal notes stay in the repo."""
+    """Only reader-facing text reaches the Clay import; internal notes stay in the repo."""
 
     def test_no_internal_markers_in_table_notes(self):
         import csv

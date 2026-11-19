@@ -1,6 +1,6 @@
 # Plant-first account selection for a predictive maintenance seller
 
-A small CLI pipeline that builds the input table for a Clay workbook. The scenario: a predictive maintenance platform sells to large manufacturers, wins start at one plant and spread, and a list of every manufacturer over $1B got near-zero replies. This pipeline ranks on the things that actually predict a deal instead: plant footprint, a live reliability-hiring trigger at a named plant, and whether the parent is already a customer somewhere.
+A predictive maintenance platform sells to large manufacturers. Its wins start at one plant and spread, and a list of every manufacturer over $1B got near-zero replies. This repo builds a better list: it rolls companies up to the parent and ranks them on what predicts a deal, which is plant footprint, a reliability hire posted at a named plant in the last 60 days, and whether the parent is already a customer somewhere. The scripts gather sourced inputs into one CSV; the tiering, ranking and play routing run as live formulas in Clay.
 
 Augury stands in as the seller. Every customer flag comes from a public announcement, with the source URL and date.
 
@@ -8,7 +8,7 @@ Augury stands in as the seller. Every customer flag comes from a public announce
 
 | Step | Script | Source | Output |
 |---|---|---|---|
-| 1 | `scripts/01_plant_counts.py` | SEC EDGAR (free) finds each 10-K; the script cuts out Item 2 "Properties" and counts the listed sites itself, no model. Firecrawl only for non-10-K sources (annual reports, company pages). | `out/plant_counts.csv`, `out/item2/*.txt` |
+| 1 | `scripts/01_plant_counts.py` | SEC EDGAR (free) finds each 10-K and saves its Item 2 "Properties" text as evidence. Final counts are read by hand from that text (or from company pages and statements) and recorded in `config/parents.csv` with their source. Firecrawl only for non-10-K sources. | `out/plant_counts.csv`, `out/item2/*.txt` |
 | 2 | `scripts/02_triggers.py` | Firecrawl reads employer job boards. Seed postings are opened on the employer's own site to confirm they are open; board searches cover the rest. | `out/triggers.csv`, `out/triggers_best.csv` |
 | 3 | `scripts/03_merge.py` | Joins the parent map, counts and triggers. No tiering here. | `out/clay_import.csv`, `out/run_report.md` |
 
@@ -60,7 +60,7 @@ python scripts/03_merge.py
 
 Then import `out/clay_import.csv` into Clay and follow `clay/CLAY_SETUP.md`.
 
-**Timing:** seed triggers age out on their own. With the Stage 2 postings, LSB Industries ages out Nov 24, GAF Nov 27 and 3M Nov 28. `out/run_report.md` lists the first three to expire.
+**Timing:** triggers age out on their own, 60 days after each posting date. `out/run_report.md` lists the first three to expire.
 
 ## Failure handling
 
@@ -82,9 +82,3 @@ PDFs cost credits per page. A PDF row needs a page cap, from the row's `pdf_max_
 ## Clay formula sync
 
 The Clay strict-title formula in `clay/CLAY_SETUP.md` uses regexes generated from `pipeline/filters.py`. After any change to `filters.py`, run `python scripts/print_clay_regex.py` and paste the output into the formula. The offline tests fail if the two drift apart.
-
-## Config notes before a full run
-
-Search `config/parents.csv` for `VERIFY`:
-- Canfor and Indorama company-page URLs (check the first scrape reads the right page).
-- `careers_url` (only for the optional board searches): Colgate, Molson Coors and Canfor are pattern guesses. KDP, Coca-Cola Consolidated, Atlas and PepsiCo have none, so the board step skips them.

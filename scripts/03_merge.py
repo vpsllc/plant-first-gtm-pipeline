@@ -111,7 +111,9 @@ def main() -> None:
     groups: dict[str, int] = {}
     for r in out:
         groups[r["row_group"]] = groups.get(r["row_group"], 0) + 1
-    expiring = sorted((r["trigger_expires"], r["company"]) for r in out if r["trigger_expires"])
+    # Excluded rows keep their trigger as evidence, but they are not sendable, so they stay out of this line.
+    expiring = sorted((r["trigger_expires"], r["company"]) for r in out
+                      if r["trigger_expires"] and r["row_group"] != "excluded_reference")
     report = [
         f"# Run report ({date.today().isoformat()})",
         "",

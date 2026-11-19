@@ -109,3 +109,15 @@ class Config(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HandCounts(unittest.TestCase):
+    def test_hand_counts_are_numbers_with_a_source_note(self):
+        import csv
+        path = Path(__file__).resolve().parent.parent / "config" / "parents.csv"
+        with open(path, encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                for col in ("plant_count_hand", "us_plant_count_hand"):
+                    self.assertTrue(r[col] == "" or r[col].isdigit(), (r["company"], col))
+                if r["plant_count_hand"] or r["us_plant_count_hand"]:
+                    self.assertTrue(r["plant_count_hand_note"], r["company"])

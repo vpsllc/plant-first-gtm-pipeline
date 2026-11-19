@@ -9,6 +9,7 @@ Output: out/clay_import.csv and out/run_report.md
 """
 from __future__ import annotations
 
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -58,7 +59,13 @@ def main() -> None:
         if p["row_group"] == "not_used":
             dropped.append(p["company"])
             continue
-        c = counts.get(p["company"], {})
+        c = dict(counts.get(p["company"], {}))
+        if p.get("plant_count_hand") or p.get("us_plant_count_hand"):
+            # A hand count read from the saved filing text wins over the script's automatic count.
+            filed = re.search(r"\(filed [^)]+\)", c.get("plant_count_label", "") or "")
+            c.update(plant_count=p.get("plant_count_hand", ""), us_plant_count=p.get("us_plant_count_hand", ""),
+                     plant_count_label=p["plant_count_hand_note"] + (f" {filed.group(0)}" if filed else ""),
+                     method="hand count from filing text", evidence=p["plant_count_hand_note"], status="ok: hand count")
         t = triggers.get(p["company"], {})
         augury_date = p["augury_date"]
         row = {
@@ -83,7 +90,8 @@ def main() -> None:
         }
         out.append(row)
 
-        if p["row_group"] != "excluded_reference" and p["plant_count_source"] != "none" and not row["plant_count"]:
+        if (p["row_group"] != "excluded_reference" and p["plant_count_source"] != "none"
+                and not row["plant_count"] and not row["us_plant_count"]):
             gaps.append(f"- {p['company']}: no plant count ({c.get('status', 'not pulled')})")
         if str(c.get("status", "")).startswith("CHECK"):
             gaps.append(f"- {p['company']}: plant count needs a hand check ({c['status']})")

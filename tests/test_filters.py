@@ -129,3 +129,23 @@ class SeedDateFallback(unittest.TestCase):
         self.assertIsNone(parse_posted("Not specified", AS_OF))
         self.assertIsNone(parse_posted("", AS_OF))
         self.assertTrue(evaluate("Reliability Engineer", "Macon, GA", "2026-10-28", AS_OF)[0])
+
+
+class PostingStatus(unittest.TestCase):
+    def setUp(self):
+        import importlib.util
+        path = Path(__file__).resolve().parent.parent / "scripts" / "02_triggers.py"
+        spec = importlib.util.spec_from_file_location("triggers", path)
+        self.mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.mod)
+
+    def test_open_needs_evidence(self):
+        self.assertEqual(self.mod.posting_status({"status": "open", "status_evidence": "Apply"})[0], "open")
+        self.assertEqual(self.mod.posting_status({"status": "open", "status_evidence": ""})[0], "unclear")
+
+    def test_missing_status_is_unclear_not_closed(self):
+        self.assertEqual(self.mod.posting_status({"title": "Reliability Engineer II"})[0], "unclear")
+
+    def test_closed_needs_evidence(self):
+        s = self.mod.posting_status({"status": "closed", "status_evidence": "This job is no longer available"})
+        self.assertEqual(s[0], "closed")

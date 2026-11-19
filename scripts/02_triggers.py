@@ -205,8 +205,8 @@ def main() -> None:
                                      "date_source": "employer board search",
                                      "url": job.get("url") or url, "source": "employer board search",
                                      "verified_on_board": True,
-                             "status_evidence": f"open per {seed.get('confirmed_by') or 'confirmation'}",
-                             "qualifies": ok, "reason": reason})
+                                     "status_evidence": "listed on the employer's job search page",
+                                     "qualifies": ok, "reason": reason})
     except CreditCapReached as e:
         print(f"  STOP: {e}")
 

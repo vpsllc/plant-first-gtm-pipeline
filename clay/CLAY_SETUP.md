@@ -25,36 +25,29 @@ The two "stays out" rows are useful: they show the formula rejecting a near-miss
 
 **Keep this in sync with `pipeline/filters.py`.** The two regexes below are generated from the INCLUDE and EXCLUDE lists in `filters.py`, every `\b` word boundary included, by `python scripts/print_clay_regex.py`. The offline tests fail if this file and `filters.py` drift apart. Never hand-edit the patterns here: change `filters.py`, regenerate, paste. Without the word boundaries, "mechanic" would block "Mechanical," "product" would block "Production," "build" would block "Building" and "intern" would block "International," and the Clay demo would contradict the scripts on the same title.
 
-Set `AS_OF` to the same fixed date passed to `02_triggers.py --as-of` (the Stage 4 run date).
+Set `AS_OF` to the same fixed date passed to `02_triggers.py --as-of` (the Stage 4 run date, 2026-11-19).
 
-The field names inside the job openings output (`title`, `location`, `posted_date`) are placeholders until the one-row test shows the real keys. Rename them to match before running on all six rows.
+Generated regexes (the reference the tests check):
 
 ```javascript
-(() => {
-  const AS_OF = new Date("YYYY-MM-DD");
-  const jobs = Array.isArray({{Job Openings}}) ? {{Job Openings}} : [];
-  // BEGIN generated from pipeline/filters.py (python scripts/print_clay_regex.py)
-  const include = /\breliability\s+engineer|\bengineer\W+(?:mechanical\s+)?reliability\b|\breliability\s+(?:engineering\s+)?manager|\bmaintenance\s+(?:&\s+reliability\s+)?planner|\bcondition\s+monitoring\s+(?:analyst|engineer|specialist)|\bvibration\s+analyst/i;
-  const exclude = /\bsite\s+reliability|\bsre\b|\bsoftware\b|\bdevops\b|\bcloud\b|\bobservability\b|\bquality\b|\bproduct\b|\bbuild\b|\bhardware\b|\btest\b|\bsystems?\s+safety\b|\bdata\s+center\b|\bmaintenance\s+tech|\btechnician\b|\bmechanic\b|\belectrician\b|\bintern\b|\bco-?op\b/i;
-  // END generated
-  const namedPlant = /[A-Za-z .'-]+,\s*[A-Za-z]{2,}/;
-  const hit = jobs.find(j => {
-    const title = j.title || "";
-    const posted = new Date(j.posted_date || "");
-    const age = (AS_OF - posted) / 86400000;
-    return include.test(title) && !exclude.test(title) && namedPlant.test(j.location || "")
-      && age >= 0 && age <= 60;
-  });
-  return hit ? `${hit.title} | ${hit.location} | ${hit.posted_date}` : "";
-})()
+// BEGIN generated from pipeline/filters.py (python scripts/print_clay_regex.py)
+const include = /\breliability\s+engineer|\bengineer\W+(?:mechanical\s+)?reliability\b|\breliability\s+(?:engineering\s+)?manager|\bmaintenance\s+(?:&\s+reliability\s+)?planner|\bcondition\s+monitoring\s+(?:analyst|engineer|specialist)|\bvibration\s+analyst/i;
+const exclude = /\bsite\s+reliability|\bsre\b|\bsoftware\b|\bdevops\b|\bcloud\b|\bobservability\b|\bquality\b|\bproduct\b|\bbuild\b|\bhardware\b|\btest\b|\bsystems?\s+safety\b|\bdata\s+center\b|\bmaintenance\s+tech|\btechnician\b|\bmechanic\b|\belectrician\b|\bintern\b|\bco-?op\b/i;
+// END generated
 ```
 
-If Clay's formula editor rejects the multi-line function, paste the two generated regexes unchanged into Clay's formula generator with this instruction: "Return the first job whose title matches INCLUDE and not EXCLUDE, whose location is a city and state, and whose posted date is 0 to 60 days before AS_OF, formatted title | location | date; otherwise empty." Then check that the generated formula still contains both regexes character for character.
+Clay's formula column accepts only a single expression (no `const` or `return` statements), so the deployed formula passes the same two regexes in as arguments. The one-row test on Owens Corning (Nov 19) confirmed the enrichment's real output keys: `jobs[]` with `title`, `location` and `posted_at` (ISO date-time), plus `jobCount`.
 
-Add a second formula, `Trigger reason`, so the table explains each candidate in plain English:
+Deployed `Qualifying trigger` formula (paste as is; Clay shows the column name as a token):
 
 ```javascript
-{{Qualifying trigger}} ? "Promoted: plant-level reliability hire in the last 60 days" : "No plant-level reliability trigger in 60 days"
+((jobs, include, exclude, namedPlant, asof) => ((hit) => hit ? hit.title + " | " + hit.location + " | " + (hit.posted_at || "").slice(0, 10) : "")(jobs.find(j => include.test(j.title || "") && !exclude.test(j.title || "") && namedPlant.test(j.location || "") && (asof - new Date((j.posted_at || "").slice(0, 10))) / 86400000 >= 0 && (asof - new Date((j.posted_at || "").slice(0, 10))) / 86400000 <= 60)))(Array.isArray({{Job openings (Clay)}}?.jobs) ? {{Job openings (Clay)}}.jobs : [], /\breliability\s+engineer|\bengineer\W+(?:mechanical\s+)?reliability\b|\breliability\s+(?:engineering\s+)?manager|\bmaintenance\s+(?:&\s+reliability\s+)?planner|\bcondition\s+monitoring\s+(?:analyst|engineer|specialist)|\bvibration\s+analyst/i, /\bsite\s+reliability|\bsre\b|\bsoftware\b|\bdevops\b|\bcloud\b|\bobservability\b|\bquality\b|\bproduct\b|\bbuild\b|\bhardware\b|\btest\b|\bsystems?\s+safety\b|\bdata\s+center\b|\bmaintenance\s+tech|\btechnician\b|\bmechanic\b|\belectrician\b|\bintern\b|\bco-?op\b/i, /[A-Za-z .'-]+,\s*[A-Za-z]{2,}/, new Date("2026-11-19"))
+```
+
+Add a second formula, `Trigger reason`, so the table explains each candidate in plain English (blank on non-candidate rows and before the enrichment runs):
+
+```javascript
+{{List group (code)}} !== "clay_candidate" ? "" : ({{Qualifying trigger}} ? "Promoted: plant-level reliability hire in the last 60 days" : ({{Job openings (Clay)}} ? "No plant-level reliability trigger in 60 days" : ""))
 ```
 
 ## 4. One-row test (before the other five)

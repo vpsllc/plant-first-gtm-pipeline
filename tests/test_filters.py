@@ -93,6 +93,8 @@ class ClaySync(unittest.TestCase):
         doc = (Path(__file__).resolve().parent.parent / "clay" / "CLAY_SETUP.md").read_text(encoding="utf-8")
         self.assertIn(f"const include = {include};", doc)
         self.assertIn(f"const exclude = {exclude};", doc)
+        # The deployed single-expression formula passes the same regexes as arguments.
+        self.assertIn(f"{{{{Job openings (Clay)}}}}.jobs : [], {include}, {exclude}, ", doc)
 
 
 class Config(unittest.TestCase):

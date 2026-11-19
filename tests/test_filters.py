@@ -153,3 +153,17 @@ class PostingStatus(unittest.TestCase):
     def test_closed_needs_evidence(self):
         s = self.mod.posting_status({"status": "closed", "status_evidence": "This job is no longer available"})
         self.assertEqual(s[0], "closed")
+
+
+class TableNotes(unittest.TestCase):
+    """Only Cody-facing text reaches the Clay import; internal notes stay in the repo."""
+
+    def test_no_internal_markers_in_table_notes(self):
+        import csv
+        import re as _re
+        path = Path(__file__).resolve().parent.parent / "config" / "parents.csv"
+        internal = _re.compile(r"verify|todo|spec v|credit|toray|likely|pre-check|firecrawl|strategy", _re.I)
+        with open(path, encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                for col in ("table_note", "plant_count_hand_note"):
+                    self.assertIsNone(internal.search(r[col]), (r["company"], col, r[col]))

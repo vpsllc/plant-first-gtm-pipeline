@@ -66,10 +66,17 @@ def main() -> None:
                      method="not stated", evidence=p["plant_count_hand_note"], quote="", status="not stated")
         elif p.get("plant_count_hand") or p.get("us_plant_count_hand"):
             # A hand count read from the saved filing text wins over the script's automatic count.
-            filed = re.search(r"\(filed [^)]+\)", c.get("plant_count_label", "") or "")
+            # A hand-entered source URL means the count did not come from the downloaded filing, so no "(filed ...)".
+            hand_url = p.get("plant_count_hand_url", "")
+            filed = None if hand_url else re.search(r"\(filed [^)]+\)", c.get("plant_count_label", "") or "")
             c.update(plant_count=p.get("plant_count_hand", ""), us_plant_count=p.get("us_plant_count_hand", ""),
                      plant_count_label=p["plant_count_hand_note"] + (f" {filed.group(0)}" if filed else ""),
-                     method="hand count from filing text", evidence=p["plant_count_hand_note"], status="ok: hand count")
+                     method=p.get("plant_count_hand_method") or "hand count from filing text",
+                     evidence=p["plant_count_hand_note"], status="ok: hand count")
+            if hand_url:
+                c["source_url"] = hand_url
+            if p.get("plant_unit_hand"):
+                c["unit_label"] = p["plant_unit_hand"]
         elif str(c.get("status", "")).startswith("CHECK"):
             # An unchecked count never reaches Clay (PepsiCo's 13 came from a sample list).
             c.update(plant_count="", us_plant_count="")
@@ -93,7 +100,7 @@ def main() -> None:
             "trigger_url": t.get("url", ""),
             "trigger_verified_on_board": t.get("verified_on_board", ""),
             "trigger_source": p["trigger_source"],
-            "notes": p["notes"],
+            "notes": p.get("table_note", ""),
             "baseline_note": "Baseline: the prior $1B list got near-zero replies",
         }
         out.append(row)

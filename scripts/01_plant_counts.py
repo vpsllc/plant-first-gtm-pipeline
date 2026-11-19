@@ -1,7 +1,9 @@
-"""Step 1: plant counts from public filings.
+"""Step 1: plant counts from public filings and company disclosures.
 
-- 10-K rows: resolve the latest 10-K on SEC EDGAR (free), then Firecrawl extracts the
-  count from Item 2 "Properties" with a supporting quote.
+- 10-K rows: resolve the latest 10-K on SEC EDGAR, download it and count the sites listed in
+  Item 2 "Properties" directly (pipeline/item2.py). Free, no model. The Item 2 text is saved to
+  out/item2/<company>.txt so every count can be checked line by line.
+  (A model-based count undercounted Graphic Packaging 22 vs 102 listed, so 10-Ks never use Firecrawl.)
 - annual_report rows: Firecrawl extracts from the filing_url in config/parents.csv.
 - company_page rows: Firecrawl extracts from a company locations, directory or operations page.
 - estimate rows: copied from plant_count_manual, no call.
@@ -22,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline.common import OUT, env, load_parents, read_csv, write_csv  # noqa: E402
 from pipeline.firecrawl_client import CreditCapReached, Firecrawl  # noqa: E402
+from pipeline.item2 import count_from_item2, fetch  # noqa: E402
 from pipeline.sec import latest_10k  # noqa: E402
 
 SCHEMA = {
@@ -38,7 +41,8 @@ SCHEMA = {
 }
 
 FIELDS = ["company", "parent", "plant_count", "us_plant_count", "unit_label", "as_of",
-          "plant_count_label", "source_url", "quote", "confidence", "quote_check", "status"]
+          "plant_count_label", "source_url", "method", "evidence", "quote", "confidence", "quote_check",
+          "excerpt_file", "status"]
 
 NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight",
                 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen",
@@ -113,7 +117,7 @@ def main() -> None:
     for row in load_parents():
         if only and row["company"].lower() not in only:
             continue
-        if args.resume and existing.get(row["company"], {}).get("status") == "ok":
+        if args.resume and str(existing.get(row["company"], {}).get("status", "")).startswith("ok"):
             continue
         base = {"company": row["company"], "parent": row["parent"]}
         src = row["plant_count_source"]
@@ -140,6 +144,30 @@ def main() -> None:
             url, filing_date = found["url"], found["filing_date"]
         if not url:
             out_rows.append({**base, "status": "MISSING filing_url"})
+            continue
+
+        if src == "10-K":
+            if not args.run:
+                print(f"  [dry-run] {row['company']}: would read Item 2 from {url} (EDGAR, free)")
+                continue
+            try:
+                result = count_from_item2(fetch(url, ua), row.get("item2_filter", ""))
+            except Exception as e:  # one bad download or parse must not stop the run
+                print(f"  ! {row['company']}: EDGAR read failed ({type(e).__name__}); skipped")
+                out_rows.append({**base, "source_url": url, "status": f"EDGAR read failed ({type(e).__name__})"})
+                continue
+            excerpt_path = OUT / "item2" / (re.sub(r"[^a-z0-9]+", "_", row["company"].lower()).strip("_") + ".txt")
+            excerpt_path.parent.mkdir(parents=True, exist_ok=True)
+            excerpt_path.write_text(f"{row['company']} | {url}\n\n{result['excerpt']}", encoding="utf-8")
+            print(f"  {row['company']}: {result['total_count']} total / {result['us_count']} US "
+                  f"({result['method'] or 'no method'}) -> {result['status']}")
+            out_rows.append({
+                **base,
+                "plant_count": result["total_count"], "us_plant_count": result["us_count"],
+                "plant_count_label": label_for(row, filing_date), "source_url": url,
+                "method": result["method"], "evidence": result["evidence"], "quote": result["quote"],
+                "excerpt_file": str(excerpt_path.relative_to(OUT.parent)), "status": result["status"],
+            })
             continue
 
         if args.limit and calls >= args.limit:
@@ -172,8 +200,10 @@ def main() -> None:
             "source_url": url,
             "quote": result.get("quote"),
             "confidence": result.get("confidence"),
+            "method": "firecrawl extraction",
             "quote_check": quote_check(result),
-            "status": "ok" if result.get("total_count") is not None else "no count in filing",
+            "status": ("ok" if result.get("total_count") is not None and quote_check(result).startswith("ok")
+                       else "CHECK: " + (quote_check(result) or "no count on page")),
         })
 
     if args.run:

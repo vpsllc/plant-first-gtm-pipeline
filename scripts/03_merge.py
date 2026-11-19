@@ -24,7 +24,7 @@ FIELDS = [
     "company", "parent", "rollup_note", "industry", "row_group",
     # 3 footprint
     "plant_count", "us_plant_count", "plant_unit", "plant_count_label", "plant_count_source_url",
-    "plant_count_quote",
+    "plant_count_quote", "plant_count_method",
     # 4 Augury status
     "augury_status", "augury_confirmed_sites", "augury_source_url", "augury_announced_as_of",
     # 5 trigger
@@ -66,7 +66,8 @@ def main() -> None:
             "industry": p["industry"], "row_group": p["row_group"],
             "plant_count": c.get("plant_count", ""), "us_plant_count": c.get("us_plant_count", ""),
             "plant_unit": c.get("unit_label", ""), "plant_count_label": c.get("plant_count_label", ""),
-            "plant_count_source_url": c.get("source_url", ""), "plant_count_quote": c.get("quote", ""),
+            "plant_count_source_url": c.get("source_url", ""), "plant_count_quote": c.get("evidence") or c.get("quote", ""),
+            "plant_count_method": c.get("method", ""),
             "augury_status": p["augury_status"], "augury_confirmed_sites": p["augury_sites"],
             "augury_source_url": p["augury_source_url"],
             "augury_announced_as_of": f"publicly announced as of {augury_date}" if augury_date else "",
@@ -84,6 +85,8 @@ def main() -> None:
 
         if p["row_group"] != "excluded_reference" and p["plant_count_source"] != "none" and not row["plant_count"]:
             gaps.append(f"- {p['company']}: no plant count ({c.get('status', 'not pulled')})")
+        if str(c.get("status", "")).startswith("CHECK"):
+            gaps.append(f"- {p['company']}: plant count needs a hand check ({c['status']})")
         if p["trigger_source"] in ("script", "seed") and not t:
             gaps.append(f"- {p['company']}: no qualifying trigger found by the script")
 

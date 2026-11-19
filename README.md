@@ -8,7 +8,7 @@ Augury stands in as the seller. Every customer flag comes from a public announce
 
 | Step | Script | Source | Output |
 |---|---|---|---|
-| 1 | `scripts/01_plant_counts.py` | SEC EDGAR (free) finds each 10-K; Firecrawl extracts the plant count from Item 2 "Properties" with a supporting quote. Annual reports for non-US filers. | `out/plant_counts.csv` |
+| 1 | `scripts/01_plant_counts.py` | SEC EDGAR (free) finds each 10-K; the script cuts out Item 2 "Properties" and counts the listed sites itself, no model. Firecrawl only for non-10-K sources (annual reports, company pages). | `out/plant_counts.csv`, `out/item2/*.txt` |
 | 2 | `scripts/02_triggers.py` | Firecrawl reads employer job boards. Seed postings are opened on the employer's own site to confirm they are open; board searches cover the rest. | `out/triggers.csv`, `out/triggers_best.csv` |
 | 3 | `scripts/03_merge.py` | Joins the parent map, counts and triggers. No tiering here. | `out/clay_import.csv`, `out/run_report.md` |
 
@@ -40,12 +40,12 @@ Pick one fixed as-of date for the whole run (the day you run step 2) and use it 
 ```bash
 AS_OF=2026-11-19   # example: set to the day you run step 2
 
-# 1. Plant counts: two one-row tests first, then the rest
+# 1. Plant counts: 10-K rows read Item 2 from EDGAR (free); check two first, then the rest
 python scripts/01_plant_counts.py                                     # dry run
-python scripts/01_plant_counts.py --run --only "Graphic Packaging"    # short 10-K
-python scripts/01_plant_counts.py --run --only "PepsiCo"              # long 10-K
-#    Check out/plant_counts.csv: the quote must support the count (see quote_check)
-python scripts/01_plant_counts.py --run --resume                      # the rest; skips rows already ok
+python scripts/01_plant_counts.py --run --only "Graphic Packaging"    # free; expect 102 total / 54 US
+python scripts/01_plant_counts.py --run --only "PepsiCo"              # free; different Item 2 layout
+#    Check out/plant_counts.csv against out/item2/<company>.txt. Any status starting CHECK gets a hand look.
+python scripts/01_plant_counts.py --run --resume                      # the rest; only 3 rows use Firecrawl
 
 # 2. Triggers: seed postings first
 python scripts/02_triggers.py --as-of $AS_OF                          # dry run
@@ -66,7 +66,7 @@ Then import `out/clay_import.csv` into Clay and follow `clay/CLAY_SETUP.md`.
 
 One bad call never stops a run. A failed Firecrawl request or EDGAR lookup is logged to `out/credit_ledger.jsonl` (with the error), printed, and the row is marked so `run_report.md` lists it as a gap. Only hitting the credit cap stops a run.
 
-`01_plant_counts.py` writes a `quote_check` for every count. "CHECK" means the quote does not state the number (often because the count was read off a list). Check those rows against the filing before they ship.
+Every plant-count row has a `status`. For 10-K rows, `method` says how the count was read (location list, summary table, or stated count) and `out/item2/<company>.txt` holds the Item 2 text it came from. A status starting with "CHECK" (a stated count in prose, a list and a table that disagree, or no Item 2 found) gets checked by hand before the row ships. Firecrawl rows also get a `quote_check`.
 
 ## Plant-count sources
 

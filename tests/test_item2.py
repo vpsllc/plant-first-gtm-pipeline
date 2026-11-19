@@ -104,6 +104,15 @@ class SummaryAndProse(unittest.TestCase):
         self.assertEqual(r["total_count"], 14)
         self.assertTrue(r["status"].startswith("CHECK"))
 
+    def test_heading_in_one_cell_table(self):
+        # Owens Corning FY2025: headings sit in one-cell tables; the count is stated in prose.
+        html = ("<html><body><table><tr><td>ITEM 2. PROPERTIES</td></tr></table>"
+                "<p>As of December 31, 2025, we operated in 143 manufacturing facilities, of which 103 were owned.</p>"
+                "<table><tr><td>ITEM 3. LEGAL PROCEEDINGS</td></tr></table><p>None.</p></body></html>")
+        r = count_from_item2(html)
+        self.assertEqual(r["total_count"], 143)
+        self.assertTrue(r["status"].startswith("CHECK"))
+
     def test_missing_section(self):
         r = count_from_item2("<html><body><p>No properties here.</p></body></html>")
         self.assertTrue(r["status"].startswith("CHECK"))

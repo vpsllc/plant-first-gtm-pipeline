@@ -131,6 +131,10 @@ def _block_text(block) -> str:
 
 def item2_section(blocks) -> list:
     """The longest run of blocks from an 'Item 2 ... Properties' heading to the next 'Item 3'."""
+    # Some filings put item headings in a one-row table (Owens Corning FY2025: a single
+    # "ITEM 2. PROPERTIES" cell). Treat those as headings.
+    blocks = [("text", " ".join(v[0])) if k == "table" and len(v) == 1 and len(v[0]) <= 2
+              and re.match(r"^item\s*\d", " ".join(v[0]), re.I) else (k, v) for k, v in blocks]
     starts = []
     for i, (kind, val) in enumerate(blocks):
         if kind != "text":

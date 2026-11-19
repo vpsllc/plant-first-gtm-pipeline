@@ -58,6 +58,39 @@ class LocationList(unittest.TestCase):
         self.assertEqual(r["total_count"], 4)
 
 
+class RealLayouts(unittest.TestCase):
+    """Shapes taken from the real filings the first version got wrong."""
+
+    def test_grid_four_sites_per_row_and_other_section(self):
+        # Graphic Packaging FY2025: mills as (site, use) rows, an "Other:" block of R&D and machinery
+        # sites, then packaging plants laid out four per table row with (a)/(b) footnotes.
+        grid = [f"{name(i)}, OH" for i in range(8)] + ["Elk Grove, IL(a)(b)", "Querétaro, Mexico(a)",
+                "St.-Hyacinthe, Québec(a)", "Jundiai, Sao Paulo, Brazil"]
+        rows = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in grid[i:i + 4]) + "</tr>"
+                       for i in range(0, len(grid), 4))
+        body = ("<table><tr><td>Location</td><td>Related Products or Use of Facility</td></tr>"
+                "<tr><td>Paperboard Manufacturing Facilities:</td></tr>"
+                "<tr><td>Macon, GA</td><td>Unbleached paperboard</td></tr>"
+                "<tr><td>Waco, TX</td><td>Recycled paperboard</td></tr>"
+                "<tr><td>Other:</td></tr>"
+                "<tr><td>Crosby, MN</td><td>Packaging Machinery Engineering, Design and Manufacturing</td></tr>"
+                "<tr><td>Menomonee Falls, WI</td><td>Foodservice Rebuild Center</td></tr>"
+                "<tr><td>Packaging Facilities:</td></tr>" + rows + "</table>")
+        r = count_from_item2(doc(body))
+        self.assertEqual(r["total_count"], 14)  # 2 mills + 12 grid sites, Other: block skipped
+        self.assertEqual(r["us_count"], 11)     # 2 mills + 8 Ohio + Elk Grove
+        self.assertTrue(r["status"].startswith("ok"))
+
+    def test_significant_properties_list_is_check(self):
+        # PepsiCo FY2025: Item 2 lists a handful of "significant properties", not the plant network.
+        body = ("<p>Significant properties by segment are as follows:</p><table>"
+                "<tr><td>Segment</td><td>Property Type</td><td>Location</td></tr>"
+                + "".join(f"<tr><td>PFNA</td><td>Convenient food plant</td><td>{name(i)}, Iowa</td></tr>"
+                          for i in range(5)) + "</table>")
+        r = count_from_item2(doc(body))
+        self.assertTrue(r["status"].startswith("CHECK"), r["status"])
+
+
 class SummaryAndProse(unittest.TestCase):
     def test_summary_table_total_row(self):
         body = ("<table><tr><td>Segment</td><td>Manufacturing Plants</td></tr>"

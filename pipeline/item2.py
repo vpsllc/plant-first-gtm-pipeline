@@ -44,6 +44,13 @@ STATED = re.compile(
     r"\b(\d{1,4}|" + "|".join(COUNT_WORDS) + r")\s+(?:[a-z\-]+\s+){0,3}?"
     r"(plants|facilities|mills|manufacturing sites|production centers|breweries|production facilities)\b",
     re.I)
+# One table cell that is just a site: "Macon, GA", "Elk Grove, IL(a)(b)", "Jundiai, Sao Paulo, Brazil".
+SITE_CELL = re.compile(r"^[^\W\d_][^\W\d_ .'\-]*(?:[ .'\-]+[^\W\d_]+)*\.?"
+                       r"(?:,\s*[^\W\d_][^\W\d_ .'\-]*(?:[ .'\-]+[^\W\d_]+)*\.?){1,2}(?:\([a-z]\))*$")
+FOOTNOTE = re.compile(r"(?:\([a-z]\))+$")
+# A list can be only a sample of the footprint ("Significant properties by segment are as follows").
+SAMPLE_LIST = re.compile(r"\b(significant|principal significant|selected|representative|largest)\s+"
+                         r"(properties|facilities|plants|locations)\b", re.I)
 PLANT_HEADER = re.compile(r"plants?|facilit|mills?|manufactur|production", re.I)
 
 BLOCK_TAGS = {"p", "div", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr"}
@@ -188,16 +195,35 @@ def _summary_table(rows: list[list[str]], row_filter: str) -> tuple[int, str] | 
     return None
 
 
+def _subheader(row: list[str]) -> str | None:
+    """A one-cell row like "North American Packaging Facilities:" or "Other:"."""
+    if len(row) == 1 and "," not in row[0] and len(row[0]) < 80:
+        return row[0]
+    return None
+
+
 def _location_rows(section, row_filter: str) -> list[str]:
     sites = []
     for kind, val in section:
         candidates = []
         if kind == "table":
+            skip = False
             for r in val:
+                head = _subheader(r)
+                if head is not None:
+                    # Sites listed under "Other:" or "Offices:" are not plants.
+                    skip = bool(re.match(r"^\s*other\b", head, re.I) or NON_PLANT.search(head))
+                    continue
+                if skip:
+                    continue
                 line = ", ".join(r)
                 if row_filter and row_filter.lower() not in line.lower():
                     continue
-                candidates.append(line)
+                if len(r) >= 2 and all(SITE_CELL.match(c) for c in r):
+                    # Grid layout: several sites per table row, one per cell.
+                    candidates.extend(FOOTNOTE.sub("", c) for c in r)
+                else:
+                    candidates.append(line)
         else:
             if SITE_LINE.match(val) and not (row_filter and row_filter.lower() not in val.lower()):
                 candidates.append(val)
@@ -237,7 +263,10 @@ def count_from_item2(html: str, row_filter: str = "") -> dict:
         out.update(total_count=len(sites), us_count=len(us), method="location list",
                    evidence=f"{len(sites)} listed sites ({len(us)} US), e.g. " + " / ".join(sites[:5]),
                    status="ok: counted the Item 2 location list")
-        if summary and summary[0] != len(sites):
+        if SAMPLE_LIST.search(excerpt):
+            out["status"] = (f"CHECK: Item 2 lists only {SAMPLE_LIST.search(excerpt).group(0).lower()}, "
+                             "not every plant; the list count is not a plant count")
+        elif summary and summary[0] != len(sites):
             out["status"] = (f"CHECK: location list gives {len(sites)}, a summary table gives {summary[0]} "
                              f"({summary[1][:120]})")
         return out

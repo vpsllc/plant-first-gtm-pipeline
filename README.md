@@ -2,7 +2,7 @@
 
 A predictive maintenance platform sells to large manufacturers. Its wins start at one plant and spread, and a list of every manufacturer over $1B got near-zero replies. This repo builds a better list: it rolls companies up to the parent and ranks them on what predicts a deal, which is plant footprint, a reliability hire posted at a named plant in the last 60 days, and whether the parent is already a customer somewhere. The scripts gather sourced inputs into one CSV; the tiering, ranking and play routing run as live formulas in Clay.
 
-Augury stands in as the seller. Every customer flag comes from a public announcement, with the source URL and date.
+Augury stands in as the seller. Every customer flag comes from a public announcement, with the source URL and date. Built and run from the terminal with Claude Code.
 
 ## What it does
 
@@ -13,6 +13,10 @@ Augury stands in as the seller. Every customer flag comes from a public announce
 | 3 | `scripts/03_merge.py` | Joins the parent map, counts and triggers. No tiering here. | `out/clay_import.csv`, `out/run_report.md` |
 
 Tiering, ranking and play routing live in Clay as formulas, so the logic is visible in the table. Rows marked `trigger_source=clay` are left for Clay's job-openings enrichment, which runs only on Tier 2 candidates.
+
+## Results (run of Nov 19, 2026)
+
+27 accounts: 9 Augury customer parents (Tier 1), 11 Tier 2 (8 from the scripts, 3 promoted by Clay’s job-openings enrichment after employer-site checks), 7 excluded or not promoted, each with its reason. Cost: 96 Firecrawl credits and 6 Clay credits.
 
 ## Rules the code enforces
 

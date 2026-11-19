@@ -61,7 +61,7 @@ def main() -> None:
             continue
         c = dict(counts.get(p["company"], {}))
         if (p.get("plant_count_hand") or "").strip().lower() == "not stated":
-            # Rod's rule: no company statement of a plant count means "not stated" (ranks last in its tier).
+            # Rule: no company statement of a plant count means "not stated" (ranks last in its tier).
             c.update(plant_count="", us_plant_count="", unit_label="", plant_count_label="not stated",
                      method="not stated", evidence=p["plant_count_hand_note"], quote="", status="not stated")
         elif p.get("plant_count_hand") or p.get("us_plant_count_hand"):
